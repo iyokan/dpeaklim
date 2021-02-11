@@ -273,18 +273,29 @@ BOOL RestartWindowsAudioService()
 	BOOL bResult;
 	SC_HANDLE hSC;
 	SC_HANDLE hService;
+	SC_HANDLE TPHKLOAD;
 	SERVICE_STATUS sc;
 	bResult = FALSE;
 	hSC = OpenSCManager(NULL, SERVICES_ACTIVE_DATABASE, SC_MANAGER_CONNECT);
 	if(hSC)
 	{
 		hService = OpenService(hSC, _T("AudioSrv"), SERVICE_QUERY_STATUS | SERVICE_START | SERVICE_STOP);
+		TPHKLOAD = OpenService(hSC, _T("TPHKLOAD"), SERVICE_QUERY_STATUS | SERVICE_START | SERVICE_STOP);
 		if(hService)
 		{
 			if(QueryServiceStatus(hService, &sc))
 			{
 				if(sc.dwCurrentState == SERVICE_RUNNING)
 				{
+					if(TPHKLOAD && QueryServiceStatus(TPHKLOAD, &sc) && sc.dwCurrentState == SERVICE_RUNNING && ControlService(TPHKLOAD, SERVICE_CONTROL_STOP, &sc))
+					{
+						do
+						{
+							Sleep(100);
+							QueryServiceStatus(TPHKLOAD, &sc);
+						}
+						while(sc.dwCurrentState == SERVICE_STOP_PENDING);
+					}
 					if(ControlService(hService, SERVICE_CONTROL_STOP, &sc))
 					{
 						do
@@ -299,6 +310,11 @@ BOOL RestartWindowsAudioService()
 			if(StartService(hService, 0, NULL))
 				bResult = TRUE;
 			CloseServiceHandle(hService);
+			if (TPHKLOAD)
+			{
+				StartService(TPHKLOAD, 0, NULL);
+				CloseServiceHandle(TPHKLOAD);
+			}
 		}
 		CloseServiceHandle(hSC);
 	}
@@ -426,4 +442,3 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	return 0;
 }
-
